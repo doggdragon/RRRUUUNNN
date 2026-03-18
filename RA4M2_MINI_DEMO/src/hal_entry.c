@@ -33,11 +33,11 @@ int timeout_ms = 100000;
 #define PI_F                            (3.1415926f)
 
 /* Target speed and control parameters. */
-#define TARGET_BELT_SPEED_MPS          (0.06f)
+#define TARGET_BELT_SPEED_MPS          (0.03f)
 #define MAIN_TICK_US                   (100U)
 #define PWM_CARRIER_HZ                 (10000U)
 #define CONTROL_PERIOD_MS              (20U)
-#define MAX_ACCEL_MPS2                 (0.08f)
+#define MAX_ACCEL_MPS2                 (0.03f)
 #define ENCODER_CPR                    (52.0f)
 #define PI_CTRL_KP                     (0.35f)
 #define PI_CTRL_KI                     (0.80f)
@@ -321,14 +321,13 @@ static void conveyor_control_update(void)
 
     if (!g_conveyor.run_cmd)
     {
-        g_conveyor.belt_speed_ref_mps = 0.0f;
-        g_conveyor.integral = 0.0f;
-        g_conveyor.pwm_permil = 0U;
-        g_open_loop_fallback = false;
-        g_encoder_stall_ms = 0U;
-        g_motor_is_running = false;
-        g_belt_speed_disp_mps = 0.0f;
-        return;
+        /* Keep controller active and ramp target to zero for smooth stop when gate is LOW. */
+        if (g_conveyor.belt_speed_ref_mps <= 0.001f)
+        {
+            g_open_loop_fallback = false;
+            g_encoder_stall_ms = 0U;
+            g_belt_speed_disp_mps = 0.0f;
+        }
     }
 
 #if !USE_SPEED_CLOSED_LOOP
