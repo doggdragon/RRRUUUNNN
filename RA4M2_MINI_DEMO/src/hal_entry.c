@@ -33,11 +33,11 @@ int timeout_ms = 100000;
 #define PI_F                            (3.1415926f)
 
 /* Target speed and control parameters. */
-#define TARGET_BELT_SPEED_MPS          (0.03f)
+#define TARGET_BELT_SPEED_MPS          (0.02f)
 #define MAIN_TICK_US                   (100U)
 #define PWM_CARRIER_HZ                 (10000U)
 #define CONTROL_PERIOD_MS              (20U)
-#define MAX_ACCEL_MPS2                 (0.03f)
+#define MAX_ACCEL_MPS2                 (0.02f)
 #define ENCODER_CPR                    (52.0f)
 #define PI_CTRL_KP                     (0.35f)
 #define PI_CTRL_KI                     (0.80f)
@@ -87,6 +87,7 @@ static uint8_t g_pwm_phase = 0U;
 static uint32_t g_uptime_ms = 0;
 static uint32_t g_encoder_stall_ms = 0;
 static uint32_t g_gate_low_ms = 0;
+static uint32_t g_gate_high_ms = 0;
 static bool g_open_loop_fallback = false;
 static bool g_motor_gate_allow_run = true;
 static bool g_motor_is_running = false;
@@ -365,7 +366,7 @@ static void conveyor_control_update(void)
         }
         else
         {
-            if (duty_ol < min_run_duty)
+            if (g_conveyor.run_cmd && (duty_ol < min_run_duty))
             {
                 duty_ol = min_run_duty;
             }
@@ -436,7 +437,7 @@ static void conveyor_control_update(void)
     {
         float min_run_duty = ((float) PWM_MIN_RUN_PERMIL) / 1000.0f;
         float max_duty = ((float) PWM_MAX_PERMIL) / 1000.0f;
-        if (duty < min_run_duty)
+        if (g_conveyor.run_cmd && (duty < min_run_duty))
         {
             duty = min_run_duty;
         }
@@ -471,16 +472,32 @@ void conveyor_display_off(void)
 static void conveyor_auto_profile_update(void)
 {
     bool profile_run = true;
+    bool gate_raw_allow = motor_gate_allow_run_read();
 
-    /* Debounce gate: require continuous low for GATE_STOP_DEBOUNCE_MS to stop. */
-    if (motor_gate_allow_run_read())
+    /* Debounce gate both ways:
+     * P001 LOW  for debounce window -> stop command
+     * P001 HIGH (or floating with pull-up) for debounce window -> run command */
+    if (gate_raw_allow)
     {
         g_gate_low_ms = 0U;
-        g_motor_gate_allow_run = true;
+        if (g_gate_high_ms < GATE_STOP_DEBOUNCE_MS)
+        {
+            g_gate_high_ms += 1U;
+        }
+
+        if (g_gate_high_ms >= GATE_STOP_DEBOUNCE_MS)
+        {
+            g_motor_gate_allow_run = true;
+        }
     }
     else
     {
-        g_gate_low_ms += 1U;
+        g_gate_high_ms = 0U;
+        if (g_gate_low_ms < GATE_STOP_DEBOUNCE_MS)
+        {
+            g_gate_low_ms += 1U;
+        }
+
         if (g_gate_low_ms >= GATE_STOP_DEBOUNCE_MS)
         {
             g_motor_gate_allow_run = false;
