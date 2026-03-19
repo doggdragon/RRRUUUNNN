@@ -33,7 +33,8 @@ int timeout_ms = 100000;
 #define PI_F                            (3.1415926f)
 
 /* Target speed and control parameters. */
-#define TARGET_BELT_SPEED_MPS          (0.02f)
+#define TARGET_BELT_SPEED_MMPS         (5.0f)
+#define TARGET_BELT_SPEED_MPS          (TARGET_BELT_SPEED_MMPS / 1000.0f)
 #define MAIN_TICK_US                   (100U)
 #define PWM_CARRIER_HZ                 (10000U)
 #define CONTROL_PERIOD_MS              (20U)
