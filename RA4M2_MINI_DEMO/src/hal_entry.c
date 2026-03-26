@@ -458,10 +458,11 @@ static void conveyor_display_init(void)
     OLED_DisplayTurn(0);
 }
 
-static void conveyor_display_logo_once(void)
+static void conveyor_display_title_once(void)
 {
     OLED_ClearBuffer();
-    OLED_ShowString(46, 20, (u8 *) "123", 24, 1);
+    OLED_ShowString(10, 16, (u8 *) "CONVEYOR", 16, 1);
+    OLED_ShowString(36, 36, (u8 *) "BELT", 16, 1);
     OLED_Refresh();
 }
 
@@ -527,7 +528,7 @@ void hal_entry(void)
     motor_hw_init();
 #if ENABLE_OLED_UI
     conveyor_display_init();
-    conveyor_display_logo_once();
+    conveyor_display_title_once();
 #endif
 
     while (1)
