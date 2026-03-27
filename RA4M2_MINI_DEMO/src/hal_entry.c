@@ -40,8 +40,8 @@ int timeout_ms = 100000;
 #define CONTROL_PERIOD_MS              (20U)
 #define MAX_ACCEL_MPS2                 (0.02f)
 #define ENCODER_CPR                    (52.0f)
-#define PI_CTRL_KP                     (0.35f)
-#define PI_CTRL_KI                     (0.80f)
+#define PI_CTRL_KP                     (0.20f)
+#define PI_CTRL_KI                     (0.35f)
 #define FEED_FORWARD_GAIN              (0.55f)
 #define DEMO_AUTO_CYCLE                (0)
 #define PWM_MAX_PERMIL                 (750U)
@@ -54,7 +54,8 @@ int timeout_ms = 100000;
 #define GATE_STOP_DEBOUNCE_MS          (20U)
 #define USE_SPEED_CLOSED_LOOP          (1)
 #define SPEED_DISPLAY_FILTER_ALPHA     (0.05f)
-#define SPEED_MEAS_WINDOW_MS           (20U)
+#define SPEED_MEAS_WINDOW_MS           (100U)
+#define SPEED_CTRL_FILTER_ALPHA        (0.20f)
 #define SPEED_VALID_MAX_MPS            (0.60f)
 #define SPEED_DISP_MAX_SLEW_MPS2       (0.20f)
 #define SPEED_ZERO_DEADBAND_MPS        (0.005f)
@@ -295,7 +296,19 @@ static void conveyor_control_update(void)
     }
 
     g_conveyor.motor_rpm_meas = motor_rps * 60.0f;
-    g_conveyor.belt_speed_meas_mps = motor_rps_to_belt_mps(motor_rps);
+    {
+        float speed_raw_mps = motor_rps_to_belt_mps(motor_rps);
+
+        if (speed_raw_mps < 0.0f)
+        {
+            speed_raw_mps = -speed_raw_mps;
+        }
+
+        speed_raw_mps = clampf(speed_raw_mps, 0.0f, SPEED_VALID_MAX_MPS);
+
+        /* Encoder pulse rate is low at this speed range, so apply filtering for control loop robustness. */
+        g_conveyor.belt_speed_meas_mps += SPEED_CTRL_FILTER_ALPHA * (speed_raw_mps - g_conveyor.belt_speed_meas_mps);
+    }
     {
         float meas_mps = g_conveyor.belt_speed_meas_mps;
         float max_step = SPEED_DISP_MAX_SLEW_MPS2 * dt_s;
@@ -431,6 +444,7 @@ static void conveyor_control_update(void)
     {
         duty = 0.0f;
         g_conveyor.integral = 0.0f;
+        g_conveyor.belt_speed_meas_mps = 0.0f;
         g_open_loop_fallback = false;
         g_encoder_stall_ms = 0U;
     }
