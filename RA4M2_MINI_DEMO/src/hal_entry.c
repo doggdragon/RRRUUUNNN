@@ -56,6 +56,8 @@ int timeout_ms = 100000;
 #define SPEED_DISPLAY_FILTER_ALPHA     (0.05f)
 #define SPEED_MEAS_WINDOW_MS           (100U)
 #define SPEED_CTRL_FILTER_ALPHA        (0.20f)
+#define STARTUP_KICK_SPEED_MMPS        (8.0f)
+#define STARTUP_KICK_SPEED_MPS         (STARTUP_KICK_SPEED_MMPS / 1000.0f)
 #define SPEED_VALID_MAX_MPS            (0.60f)
 #define SPEED_DISP_MAX_SLEW_MPS2       (0.20f)
 #define SPEED_ZERO_DEADBAND_MPS        (0.005f)
@@ -487,6 +489,7 @@ void conveyor_display_off(void)
 
 static void conveyor_auto_profile_update(void)
 {
+    static bool s_prev_run_cmd = false;
     bool profile_run = true;
     bool gate_raw_allow = motor_gate_allow_run_read();
 
@@ -528,6 +531,24 @@ static void conveyor_auto_profile_update(void)
 #endif
 
     g_conveyor.run_cmd = (profile_run && g_motor_gate_allow_run);
+
+    /* Rising-edge startup kick: ensure non-zero initial speed and torque immediately after enable. */
+    if ((!s_prev_run_cmd) && g_conveyor.run_cmd)
+    {
+        if (g_conveyor.belt_speed_ref_mps < STARTUP_KICK_SPEED_MPS)
+        {
+            g_conveyor.belt_speed_ref_mps = STARTUP_KICK_SPEED_MPS;
+        }
+
+        if (g_conveyor.pwm_permil < PWM_MIN_RUN_PERMIL)
+        {
+            g_conveyor.pwm_permil = PWM_MIN_RUN_PERMIL;
+        }
+
+        g_conveyor.integral = 0.0f;
+    }
+
+    s_prev_run_cmd = g_conveyor.run_cmd;
 }
 
 /*******************************************************************************************************************//**
